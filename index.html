@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Star Systems Visualization</title>
+    <style>
+        body { margin: 0; }
+        canvas { display: block; }
+    </style>
+</head>
+<body>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
+    <script type="importmap">
+        {
+          "imports": {
+            "three": "./three.js-master/build/three.module.js"
+          }
+        }
+        </script>
+    <button id="menuToggle" style="position: fixed; top: 10px; left: 10px; z-index: 10;">Discovery Methods</button>
+    <div id="menuContainer" style="position: fixed; top: 60px; left: 10px; background-color: white; display: none; padding: 10px; border: 1px solid black; z-index: 10;">
+    </div>
+    <button id="menuDisckFacilToggle" style="position: fixed; top: 10px; left: 200px; z-index: 10;">Discovery Facility</button>
+    <div id="menuDisckFacilContainer" style="position: fixed; top: 60px; left: 10px; background-color: white; display: none; padding: 10px; border: 1px solid black; z-index: 10;">
+    </div>
+    <div id="loadingText" style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 20px; z-index: 1000;">
+        Loading Exoplanets...
+    </div>
+    <button id="helpButton" style="position: fixed; top: 10px; right: 10px; z-index: 10;">Help</button>
+    <div id="helpPopup" style="display: none; position: fixed; top: 50px; right: 100px; background-color: white; padding: 20px; border: 1px solid black; z-index: 11; max-width: 450px;">
+        <h2>Help & Instructions</h2>
+        <p>Top left:</p>
+        <ul>
+            <li><b>Discovery Methods:</b> Filter stars by their discovery methods.</li>
+            <li><b>Discovery Facility:</b> Show stars discovered by specific facilities.</li>
+        </ul>
+        <p>Bottom middle:</p>
+        <ul>
+            <li><b>Simulation Slider:</b> Adjust the animation speed of planetary orbits.</li>
+            <li><b>Search:</b> Look up stars by name.</li>
+            <li><b>Year Filter:</b> Filter discoveries by year range.</li>
+        </ul>
+        <p>Click on a star to focus. Scroll with the mouse wheel for zoom, and pan with left and right mouse button.</p>
+        <p>Planets are colored true to their temperature, with missing data calculated by assuming an earth-like albedo. White and red for higher temperatures, green for habitable zones, and blue for colder planets.</p>
+        <p>Planet sizes are compressed to a logarithmic scale. Planets with an unknown size are defaulted to Earth-size.</p>
+        <p>The revolutions of the planets are all true to one another, while the eccentricities are simplified to all point in the same direction.</p>
+        <p><b>Lost?</b> Press the Home button to return to Sol!</p>
+        <p><b>The presented data may be inaccurate.</b> </p>
+    </div>
+    <div class="control-panel">
+      <input type="range" id="speedSlider" min="0" max="100" value="50" step="1">
+      <span id="speedValue">1x</span>
+      <input type="text" id="searchBox" placeholder="Enter star..." style="margin-right: 10px;">
+      Min Year: <input type="number" id="minYear" placeholder="1992" style="width: 80px;">
+      Max Year: <input type="number" id="maxYear" placeholder="2024" style="width: 80px;">
+      <button id="filterButton">Filter</button>
+  </div>    
+    <script type="module" src="script.js"></script>
+    
+</body>
+<style>
+  body {
+      margin: 0;
+      font-family: 'Arial', sans-serif;
+      background-color: #f0f2f5;
+  }
+  
+  canvas {
+      display: block;
+  }
+  
+  button {
+      background-color: #4CAF50;
+      border: none;
+      color: white;
+      padding: 10px 20px;
+      text-align: center;
+      text-decoration: none;
+      display: inline-block;
+      font-size: 16px;
+      margin: 4px 2px;
+      cursor: pointer;
+      border-radius: 12px;
+      box-shadow: 0 4px 8px 0 rgba(0,0,0,0.2), 0 6px 20px 0 rgba(0,0,0,0.19);
+      transition: all 0.3s ease;
+  }
+  
+  button:hover {
+      background-color: #45a049;
+  }
+  
+  div[id^="menu"], #helpPopup {
+      background-color: #ffffff;
+      border: 1px solid #ddd;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+      border-radius: 8px;
+      padding: 15px;
+      overflow-y: auto;
+      max-height: 80%;
+  }
+  
+  #menuContainer, #menuDisckFacilContainer, #helpPopup {
+      max-width: 300px;
+  }
+  
+.control-panel {
+    position: fixed;
+    left: 50%;
+    bottom: 10px;
+    transform: translateX(-50%);
+    background-color: #fff;
+    box-shadow: 0 -2px 5px rgba(0,0,0,0.1);
+    padding: 15px;
+    font-size: 14px;
+    border-radius: 8px;
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    flex-wrap: nowrap; 
+    align-items: center;
+    width: auto;
+    max-width: 90%;
+}
+
+input[type="text"], input[type="number"], input[type="range"], button {
+    flex: 0 1 auto;
+    min-width: 0;
+    padding: 10px;
+    border-radius: 5px;
+    border: 1px solid #ccc;
+    margin: 0;
+}
+
+#loadingText {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-size: 60px;
+        color: green;
+        z-index: 1000;
+    }
+
+#speedValue {
+    display: inline-block;
+    width: 50px;
+    text-align: center;
+}
+
+input[type="range"] {
+    cursor: pointer;
+    flex: 1;
+    width: auto;
+}
+  
+  ul {
+      padding-left: 20px;
+  }
+  
+  li {
+      margin-bottom: 10px;
+  }
+  </style>
+</html>
