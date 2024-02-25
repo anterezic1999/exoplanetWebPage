@@ -91,6 +91,27 @@ function toggleHelpPopup() {
     popup.style.display = popup.style.display === 'none' ? 'block' : 'none';
 }
 
+function getOrbPeriod(smaAU, starMassSolar) {
+    // Constants
+    const G = 6.67430e-11; // Gravitational constant in m³ kg⁻¹ s⁻²
+    const M_sun = 1.989e30; // Mass of the Sun in kg
+    const AU_to_m = 1.496e11; // Conversion factor from AU to meters
+
+    // Convert semi-major axis from AU to meters
+    const sma_m = smaAU * AU_to_m;
+
+    // Convert star mass from solar masses to kg
+    const M = starMassSolar * M_sun;
+
+    // Calculate orbital period in seconds using Kepler's third law
+    const T_seconds = Math.sqrt((4 * Math.PI * Math.PI * Math.pow(sma_m, 3)) / (G * M));
+
+    // Convert orbital period from seconds to days
+    const T_days = T_seconds / (60 * 60 * 24);
+
+    return T_days;
+}
+
 document.getElementById('helpButton').addEventListener('click', toggleHelpPopup);
 
 function updatePlanetPosition(planet, elapsedTime) {
@@ -158,12 +179,12 @@ function createPlanet(size, color, orbitRadius, orbitSpeed) {
     planetMesh.userData = {
         orbitRadius: orbitRadius,
         orbitSpeed: orbitSpeed,
-        orbitAngle: (orbitRadius*orbitRadius) % Math.PI * 2.5
+        orbitAngle: orbitRadius*Math.random()/Math.random()
     };
     return planetMesh;
 }
 
-function addPlanetsToStar(star, scene, planetData) {
+function addPlanetsToStar(star, scene, planetData, minDistance, maxDistance, useSpecialOrdering) {
     // Ensure planetData is always an array
     if (!Array.isArray(planetData)) {
         console.error('planetData is not an array:', planetData);
@@ -173,9 +194,28 @@ function addPlanetsToStar(star, scene, planetData) {
     var planets = [];
     planetData.forEach(planetInfo => {
 
-        var orbitRadius = (0.08 + 0.35*(Math.log(parseFloat(planetInfo.pl_orbsmax+1)) / Math.log(5))) || 0.2; 
-        var orbitSpeed = (365/planetInfo.pl_period)/10*0.6 || 1/10*0.6
-        var planetSize = (0.015 + 0.015*(Math.log(parseFloat(planetInfo.pl_rade)) / Math.log(5))) || 0.015; 
+        var orbitRadius = 0;
+
+        if(useSpecialOrdering) {
+            orbitRadius = mapRange(planetInfo.pl_orbsmax, minDistance, maxDistance, 0.08, 0.4);
+        }
+        else {
+            orbitRadius = (0.08 + 0.33*(Math.log(parseFloat(planetInfo.pl_orbsmax+1)))) || 0.2;
+            if (orbitRadius > 0.4) {
+                orbitRadius = 0.4;
+            }
+        }
+
+        if (planetInfo.pl_period){
+            var orbitalPeriod = planetInfo.pl_period;
+        } else if (planetInfo.st_mass && planetInfo.pl_orbsmax) {
+            var orbitalPeriod = getOrbPeriod(planetInfo.pl_orbsmax, planetInfo.st_mass);
+        } else {
+            var orbitalPeriod = 365;
+        }
+
+        var orbitSpeed = (365/orbitalPeriod)/10*0.6 || 0.06;
+        var planetSize = (0.005 + 0.005*(Math.log(parseFloat(planetInfo.pl_rade)) / Math.log(5))) || 0.005; 
 
         var discYear = planetInfo.disc_year;
         var discoveryMethod = planetInfo.discoverymethod || "NA" ;
@@ -188,6 +228,7 @@ function addPlanetsToStar(star, scene, planetData) {
 
         var planet = createPlanet(planetSize, planetColor, orbitRadius, orbitSpeed);
         planet.userData.discYear = discYear;
+        planet.userData.orbitalPeriod = orbitalPeriod;
         planet.userData.discoveryMethod = discoveryMethod;
         planet.userData.discoveryFacility = discoveryFacility;
         planet.userData.planetTemperature = planetTemperature;
@@ -364,6 +405,23 @@ function filterByDiscoveryYear() {
     });
 }
 
+function mapRange(x, a, b, minToMapTo, maxToMapTo) {
+    // Check if x is outside the range [a, b]
+    if (x < a) {
+        x = a;
+    } else if (x > b) {
+        x = b;
+    }
+    
+    // Compute the proportion of x's position relative to the range [a, b]
+    const proportion = (x - a) / (b - a);
+    
+    // Map the proportion to the range [c, d]
+    const result = proportion * (maxToMapTo - minToMapTo) + minToMapTo;
+    
+    return result;
+}
+
 document.getElementById('menuToggle').addEventListener('click', () => {
     const menuContainer = document.getElementById('menuContainer');
     menuContainer.style.display = menuContainer.style.display === 'none' ? 'block' : 'none';
@@ -426,8 +484,9 @@ document.addEventListener('DOMContentLoaded', function() {
         uniqueHostnames.forEach(hostname => {
             var star = data.find(item => item.hostname === hostname);
             var planetsDataForStar = data.filter(item => item.hostname === hostname);
-    
-            var geometry = new THREE.SphereGeometry(0.033, 32, 32);
+
+            var sizeOfStar = mapRange(star.st_mass, 0.1, 30, 0.025, 0.04)
+            var geometry = new THREE.SphereGeometry(sizeOfStar, 32, 32);
 
             var color = getColorFromSpectralType(star.st_spectype);
             var material = new THREE.MeshBasicMaterial({ color: color });
@@ -444,7 +503,16 @@ document.addEventListener('DOMContentLoaded', function() {
             scene.add(sphere);
             stars[hostname.toLowerCase()] = { mesh: sphere, label: textSprite };
 
-            var planets = addPlanetsToStar(sphere, scene, planetsDataForStar);
+            var distanceModifier = planetsDataForStar.map(planet => planet.pl_orbsmax);
+            const minDistance = Math.min(...distanceModifier);
+            const maxDistance = Math.max(...distanceModifier);
+            var useSpecialOrdering = 0;
+            if (distanceModifier.length != 1) {
+                useSpecialOrdering = 1;
+            }
+
+            var planets = addPlanetsToStar(sphere, scene, planetsDataForStar, minDistance, maxDistance, useSpecialOrdering);
+
             sphere.planets = planets;
             stars[hostname.toLowerCase()].planets = planets;
     
